@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"/>
+<title>英汉词汇闪卡</title>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<style>
+    :root { --card-w: 88vw; --card-max-w: 520px; --card-h: 60vh; --card-max-h: 600px; --radius: 14px; --shadow: 0 8px 24px rgba(0,0,0,0.08); --brand: #0f766e; }
+    * { box-sizing: border-box; }
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "PingFang SC","Noto Sans SC","Microsoft YaHei", sans-serif; margin: 0; padding: 0; min-height: 100vh; background: #f7faf9; display: flex; flex-direction: column; align-items: center; }
+
+    .site-header { display:flex; align-items:center; gap:14px; margin:20px 16px 6px; flex-direction: row; }
+    .site-header img { height:72px; width:auto; }
+    .site-title { font-weight: 800; font-size: 1.25rem; color:#0b3c39; text-align: center; }
+    .site-instruction { margin: 0 16px 14px; color:#334; text-align:center; }
+
+    .card-container { position: relative; width: var(--card-w); max-width: var(--card-max-w); height: var(--card-h); max-height: var(--card-max-h); perspective: 1000px; margin-bottom: 12px; }
+    .card { position: absolute; inset: 0; transform-style: preserve-3d; transition: transform .6s ease; z-index:1; }
+    .front, .back { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; border-radius: var(--radius); background: #fff; border:1px solid #e8ebe9; box-shadow: var(--shadow); padding: 28px; backface-visibility: hidden; }
+    .back { transform: rotateY(180deg); }
+    .card.flipped { transform: rotateY(180deg); }
+    body.overlay-open #card { pointer-events: none; }
+
+    .word { font-size: clamp(2.2rem, 8vw, 3.2rem); font-weight: 800; color:#0b3c39; text-align:center; line-height:1.05; }
+    .phon { margin-top: 10px; font-size: clamp(1rem, 3.5vw, 1.4rem); color:#6b7c7a; font-weight: 500; letter-spacing:.3px; }
+    .translation-zh { font-size: clamp(1.4rem, 4.5vw, 1.8rem); color:#0b3c39; font-weight: 700; text-align:center; }
+    .example { margin-top: 14px; width:100%; max-width: 520px; text-align:center; }
+    .ex-en { font-size: 1.05rem; color:#1f2937; margin-bottom: 6px; text-align:center; }
+    .ex-zh { font-size: 1.05rem; color:#374151; text-align:center; }
+    .highlight { font-weight: 800; color: var(--brand); }
+
+    .audio-front, .audio-back { margin-top: 16px; font-size: 1.4rem; cursor:pointer; user-select:none; }
+    .buttons-container { display:flex; gap:10px; width: var(--card-w); max-width: var(--card-max-w); margin-bottom: 16px; }
+    .btn { flex:1; padding: 12px; border:none; border-radius: 10px; font-size:1rem; cursor:pointer; box-shadow: 0 2px 4px rgba(0,0,0,.06); }
+    .know { background:#c7f9cc; }
+    .practice { background:#ffddd2; }
+
+    .nav { display:flex; justify-content:space-between; width:var(--card-w); max-width: var(--card-max-w); margin-bottom: 16px; }
+    .nav button { font-size:2rem; background:none; border:none; cursor:pointer; }
+
+    .hidden { display:none; }
+
+    #congratsMsg { position:absolute; inset:0; background:#fff; border-radius:var(--radius); box-shadow: var(--shadow); padding: 20px; z-index:9999; }
+    #congratsMsg:not(.hidden) { display:flex; flex-direction:column; align-items:center; justify-content:center; gap: 10px; }
+    #congratsMsg input { padding:10px; border:1px solid #e5e7eb; border-radius:10px; width: 100%; max-width: 320px; }
+    #congratsActions { display:flex; gap:10px; flex-wrap:wrap; justify-content:center; }
+    #saveImgBtn { background:#dbeafe; }
+    #reviewAll { background:#e5e7eb; }
+
+    footer { margin-top:auto; font-size:.85rem; color:#6b7280; text-align:center; padding: 18px 10px; width:100%; }
+
+    @media print {
+      body { background: #fff; }
+      .site-header, .site-instruction, .card-container, .buttons-container, .nav, #reviewControls, footer, #congratsMsg { display: none !important; }
+      #pdfReport { display: block !important; }
+    }
+    #pdfReport { display:none; padding: 24px; max-width: 980px; margin: 0 auto; font-size: 14px; color:#111827; }
+    #pdfReport h1 { font-size: 1.5rem; margin: 0 0 8px; }
+    #pdfReport h2 { font-size: 1.2rem; margin: 18px 0 8px; }
+    #pdfReport table { width:100%; border-collapse: collapse; margin-top: 8px; }
+    #pdfReport th, #pdfReport td { border: 1px solid #e5e7eb; padding: 8px; text-align: left; }
+    #pdfReport .muted { color:#6b7280; }
+    #pdfReport .score-row { font-size: 1.3rem; font-weight: 800; color: var(--brand); }
+  
+.site-title { text-align: left; }
+
+.site-header-content { display: flex; flex-direction: column; }
+.site-title { text-align: left; }
+</style>
+</head>
+<body>
+<div class="site-header">
+<img alt="BFSU Logo" src="LOGO.png"/>
+
+<div class="site-header-content"><div class="site-title" id="siteTitle">词汇闪卡</div></div></div><p class="site-instruction" id="siteInstr">点击卡片以翻转。点击音频图标🔊可收听单词或句子。</p>
+<div class="card-container">
+<div class="card" id="card">
+<div aria-label="翻转卡片" class="front" role="button">
+<div class="word" id="frontWord"></div>
+<div class="phon" id="frontPhon"></div>
+<button aria-label="播放单词音频" class="audio-front" id="audioFront" title="播放单词音频">🔊</button>
+</div>
+<div aria-label="翻转卡片" class="back" role="button">
+<div class="translation-zh" id="backTransZh"></div>
+<div class="example">
+<div class="ex-en" id="exEn"></div>
+<div class="ex-zh" id="exZh"></div>
+</div>
+<button aria-label="播放例句音频" class="audio-back" id="audioBack" title="播放例句音频">🔊</button>
+</div>
+</div>
+<div class="hidden" id="congratsMsg">
+<h2>太棒了！🎉</h2>
+<input id="studentId" placeholder="姓名 / 学号（可选）"/>
+<div class="muted" id="congratsSummary"></div>
+<div id="congratsActions">
+<button class="btn" id="saveImgBtn">保存为图片</button>
+<button class="btn" id="reviewAll">复习所有单词</button>
+</div>
+</div>
+</div>
+<div class="buttons-container">
+<button class="btn know" id="knowBtn">已掌握</button>
+<button class="btn practice" id="practiceBtn">需要练习</button>
+</div>
+<div class="nav">
+<button aria-label="上一张" id="prevBtn">←</button>
+<button aria-label="下一张" id="nextBtn">→</button>
+</div>
+<div class="hidden" id="reviewControls">
+<button class="btn" id="reviewPractice">复习“需要练习”</button>
+</div>
+<!-- 报告（用于导出图片） -->
+<section id="pdfReport">
+<h1>学习表现报告</h1>
+<div id="reportMeta"></div>
+<h2>摘要</h2>
+<table>
+<tbody id="summaryTable"></tbody>
+</table>
+<p class="muted">此报告由前端页面本地生成，可放心保存并发送给老师。</p>
+</section>
+<footer>©2025 Dr. Carlos Cardenas • 教育管理学博士</footer>
+<script>
+    // ====== 词表数据（动态） ======
+    const wordsAll = [
+  
+  {"english":"motorcycle","phonetic":"/ˈmoʊtərˌsaɪkəl/","translation_zh":"摩托车","example_en":"In my city, many people use a motorcycle to avoid traffic jams.","example_zh":"在我所在的城市，很多人骑摩托车来避免交通堵塞。"},
+  {"english":"scooter","phonetic":"/ˈskuːtər/","translation_zh":"小型摩托车/踏板车","example_en":"I sometimes ride a scooter because it’s light and easy to park.","example_zh":"我有时骑踏板车，因为它轻便且容易停车。"},
+  {"english":"bicycle","phonetic":"/ˈbaɪsɪkl/","translation_zh":"自行车","example_en":"When I was in school, I used to ride my bicycle every day to class.","example_zh":"上学的时候，我每天骑自行车去上课。"},
+  {"english":"ride-hailing","phonetic":"/ˈraɪd ˌheɪlɪŋ/","translation_zh":"网约车","example_en":"Ride-hailing apps are very popular because they are convenient and fast.","example_zh":"网约车应用很受欢迎，因为它们既方便又快捷。"},
+  {"english":"e-bike","phonetic":"/ˈiː baɪk/","translation_zh":"电动车","example_en":"E-bikes are becoming more common since they are cheap and eco-friendly.","example_zh":"电动车越来越普及，因为它们既便宜又环保。"},
+  {"english":"bus","phonetic":"/bʌs/","translation_zh":"公交车","example_en":"Taking the bus is affordable, but it can be slow during rush hour.","example_zh":"坐公交车很便宜，但在高峰期可能很慢。"},
+  {"english":"high-speed train","phonetic":"/haɪ spiːd treɪn/","translation_zh":"高铁","example_en":"The high-speed train in China is efficient and very comfortable for long journeys.","example_zh":"中国的高铁既高效又舒适，适合长途旅行。"},
+  {"english":"subway","phonetic":"/ˈsʌbweɪ/","translation_zh":"地铁","example_en":"The subway is the fastest way to get across a big city like Beijing.","example_zh":"在北京这样的大城市，地铁是最快的出行方式。"},
+  {"english":"station","phonetic":"/ˈsteɪʃən/","translation_zh":"车站","example_en":"The train station is always crowded during public holidays.","example_zh":"火车站在公共假期总是很拥挤。"},
+  {"english":"ticket","phonetic":"/ˈtɪkɪt/","translation_zh":"票","example_en":"I bought a ticket online before going to the airport.","example_zh":"我在去机场前在网上买了票。"},
+  {"english":"flight","phonetic":"/flaɪt/","translation_zh":"航班","example_en":"My flight was delayed for two hours because of the bad weather.","example_zh":"由于天气不好，我的航班延误了两个小时。"},
+
+  {"english":"bumpy","phonetic":"/ˈbʌmpi/","translation_zh":"颠簸的","example_en":"The road was so bumpy that the bus ride felt uncomfortable.","example_zh":"路太颠簸了，坐公交车感觉很不舒服。"},
+  {"english":"eventful","phonetic":"/ɪˈvɛntfl/","translation_zh":"多事的","example_en":"My first flight was eventful because the weather kept changing.","example_zh":"我的第一次飞行充满波折，因为天气不断变化。"},
+  {"english":"nerve-racking","phonetic":"/ˈnɜːrv ˌrækɪŋ/","translation_zh":"紧张的/令人焦虑的","example_en":"Driving in heavy traffic can be a nerve-racking experience.","example_zh":"在拥堵的交通中开车会让人紧张。"},
+  {"english":"relaxing","phonetic":"/rɪˈlæksɪŋ/","translation_zh":"放松的","example_en":"Taking a train journey through the countryside is really relaxing.","example_zh":"乘火车穿越乡村真的很放松。"},
+  {"english":"tedious","phonetic":"/ˈtiːdiəs/","translation_zh":"冗长乏味的","example_en":"Waiting for a delayed flight can be tedious and boring.","example_zh":"等待延误的航班既冗长又无聊。"},
+  {"english":"tiring","phonetic":"/ˈtaɪərɪŋ/","translation_zh":"累人的","example_en":"A long bus ride can be tiring, especially if the seats are not comfortable.","example_zh":"长时间坐公交车很累人，尤其是座位不舒服时。"},
+  {"english":"frustrating","phonetic":"/ˈfrʌstreɪtɪŋ/","translation_zh":"令人沮丧的","example_en":"It is frustrating when you miss your train by just one minute.","example_zh":"当你只差一分钟错过火车时，真的很沮丧。"},
+
+  {"english":"cramped","phonetic":"/kræmpt/","translation_zh":"狭窄的/拥挤的","example_en":"The bus was so cramped that I could hardly move.","example_zh":"公交车太拥挤了，我几乎动不了。"},
+  {"english":"crowded","phonetic":"/ˈkraʊdɪd/","translation_zh":"拥挤的","example_en":"The subway is usually very crowded in the morning.","example_zh":"地铁在早上通常非常拥挤。"},
+  {"english":"draughty","phonetic":"/ˈdræfti/","translation_zh":"有穿堂风的","example_en":"The old train was draughty, and cold wind came through the windows.","example_zh":"那列旧火车有穿堂风，冷风一直从窗户吹进来。"},
+  {"english":"jam-packed","phonetic":"/ˌdʒæm ˈpækt/","translation_zh":"塞满的/非常拥挤的","example_en":"The metro was jam-packed during rush hour.","example_zh":"地铁在高峰期挤满了人。"},
+  {"english":"shabby","phonetic":"/ˈʃæbi/","translation_zh":"破旧的","example_en":"The old bus looked shabby with torn seats.","example_zh":"那辆旧公交车看起来很破旧，座位都破了。"},
+  {"english":"stuffy","phonetic":"/ˈstʌfi/","translation_zh":"闷热的/不通风的","example_en":"The tram was so stuffy that everyone opened the windows.","example_zh":"有轨电车太闷热了，大家都打开了窗户。"},
+  {"english":"convenient","phonetic":"/kənˈviːniənt/","translation_zh":"方便的","example_en":"Taking the subway is very convenient in big cities.","example_zh":"在大城市坐地铁非常方便。"},
+  {"english":"expensive","phonetic":"/ɪkˈspɛnsɪv/","translation_zh":"昂贵的","example_en":"Taxis are comfortable, but they can be expensive.","example_zh":"出租车很舒服，但可能很贵。"},
+  {"english":"efficient","phonetic":"/ɪˈfɪʃənt/","translation_zh":"高效的","example_en":"The high-speed train in China is very efficient.","example_zh":"中国的高铁非常高效。"},
+  {"english":"comfortable","phonetic":"/ˈkʌmftəbl/","translation_zh":"舒适的","example_en":"The airplane seats were really comfortable on my trip.","example_zh":"我旅行时的飞机座位非常舒适。"},
+  {"english":"uncomfortable","phonetic":"/ʌnˈkʌmftəbl/","translation_zh":"不舒服的","example_en":"Sitting on the back of a motorbike for two hours was very uncomfortable.","example_zh":"坐在摩托车后座两个小时非常不舒服。"},
+  {"english":"reliable","phonetic":"/rɪˈlaɪəbl/","translation_zh":"可靠的","example_en":"The subway system is reliable because the trains usually arrive on time.","example_zh":"地铁系统很可靠，因为列车通常准时到达。"}
+
+];
+
+    // === Deck helpers (dynamic) ===
+    const words = wordsAll;
+    function getAllIndices() { return words.map((_, i) => i); }
+    function totalTerms() { return words.length; }
+
+    // App state
+    let INITIAL_INDICES = getAllIndices();
+    let currentIndices = [...INITIAL_INDICES];
+    let practiceIndices = [];
+    let index = 0;
+    let practiceMode = false;
+    const startedAt = Date.now();
+
+    // Track first decision per card
+    const firstDecision = new Map(); // index -> 'know' | 'practice'
+
+    // ===== DOM =====
+    const cardEl = document.getElementById('card');
+    const frontWordEl = document.getElementById('frontWord');
+    const frontPhonEl = document.getElementById('frontPhon');
+    const backTransZhEl = document.getElementById('backTransZh');
+    const exEnEl = document.getElementById('exEn');
+    const exZhEl = document.getElementById('exZh');
+    const audioFrontEl = document.getElementById('audioFront');
+    const audioBackEl = document.getElementById('audioBack');
+    const congratsEl = document.getElementById('congratsMsg');
+    const reviewControlsEl = document.getElementById('reviewControls');
+    const congratsSummaryEl = document.getElementById('congratsSummary');
+    const siteTitleEl = document.getElementById('siteTitle');
+    const siteInstrEl = document.getElementById('siteInstr');
+
+    // Header
+    function refreshHeader() {
+      siteTitleEl.innerHTML = `教育部 - 出国人员培训部<br/>第2周 • 英→中 闪卡`;
+      siteInstrEl.innerHTML = `点击卡片以翻转。点击音频图标🔊可收听单词或句子。`;
+    }
+    refreshHeader();
+
+    function showCard() {
+      const w = words[currentIndices[index]];
+      frontWordEl.textContent = w.english;
+      frontPhonEl.textContent = w.phonetic;
+      backTransZhEl.textContent = w.translation_zh;
+      exEnEl.innerHTML = highlightWord(w.example_en, w.english);
+      exZhEl.textContent = w.example_zh;
+      cardEl.classList.remove('flipped');
+    }
+
+    // Highlighter
+    function esc(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+    function highlightWord(sentence, word) {
+      const pattern = new RegExp(`\\b${esc(word)}\\b`, 'gi');
+      return sentence.replace(pattern, (m) => `<span class="highlight">${m}</span>`);
+    }
+
+    // Flip
+    cardEl.addEventListener('click', () => { cardEl.classList.toggle('flipped'); });
+
+    // Audio
+    const AUDIO_BASE = 'audio/';
+    function slugify(text) { return text.toLowerCase().replace(/[^a-z\s]/g, '').trim().replace(/\s+/g, '_'); }
+    function wordAudioName(english){ return slugify(english) + '.mp3'; }
+    function sentAudioName(english){ return slugify(english) + '_sen.mp3'; }
+    function audioUrl(name) { return AUDIO_BASE + name; }
+    function playWord() { const w = words[currentIndices[index]]; new Audio(audioUrl(wordAudioName(w.english))).play().catch(()=>{}); }
+    function playSentence() { const w = words[currentIndices[index]]; new Audio(audioUrl(sentAudioName(w.english))).play().catch(()=>{}); }
+    audioFrontEl.addEventListener('click', (e) => { e.stopPropagation(); playWord(); });
+    audioBackEl.addEventListener('click', (e) => { e.stopPropagation(); playSentence(); });
+
+    // Buttons
+    document.getElementById('knowBtn').addEventListener('click', () => { record('know'); nextCard(); });
+    document.getElementById('practiceBtn').addEventListener('click', () => { record('practice'); nextCard(); });
+
+    function record(action) {
+      const cardIdx = currentIndices[index];
+      if (!firstDecision.has(cardIdx)) firstDecision.set(cardIdx, action);
+      if (action === 'practice' && !practiceIndices.includes(cardIdx)) practiceIndices.push(cardIdx);
+    }
+
+    function nextCard() {
+      if (index < currentIndices.length - 1) {
+        index++;
+        showCard();
+      } else {
+        // finished current run
+        cardEl.classList.add('hidden');
+        if (!practiceMode && practiceIndices.length > 0) {
+          reviewControlsEl.classList.remove('hidden');
+        } else {
+          const s = computeSummary();
+          const elapsedMs = Date.now() - startedAt;
+          congratsSummaryEl.textContent = `掌握：${s.known}/${s.total} • 需练习：${s.practice}/${s.total} • 得分：${s.score}% • 用时：${formatDuration(elapsedMs)}`;
+          congratsEl.classList.remove('hidden');
+          document.body.classList.add('overlay-open'); // prevent card from intercepting clicks
+        }
+      }
+    }
+
+    document.getElementById('reviewPractice').addEventListener('click', () => {
+      practiceMode = true;
+      currentIndices = [...practiceIndices];
+      index = 0;
+      reviewControlsEl.classList.add('hidden');
+      congratsEl.classList.add('hidden');
+      document.body.classList.remove('overlay-open');
+      cardEl.classList.remove('hidden');
+      showCard();
+    });
+
+    document.getElementById('reviewAll').addEventListener('click', () => {
+      practiceMode = false;
+      INITIAL_INDICES = getAllIndices();
+      currentIndices = [...INITIAL_INDICES];
+      practiceIndices = [];
+      index = 0;
+      congratsEl.classList.add('hidden');
+      reviewControlsEl.classList.add('hidden');
+      document.body.classList.remove('overlay-open');
+      cardEl.classList.remove('hidden');
+      refreshHeader();
+      showCard();
+    });
+
+    document.getElementById('prevBtn').addEventListener('click', () => { if (index > 0) { index--; showCard(); } });
+    document.getElementById('nextBtn').addEventListener('click', () => nextCard());
+
+    function computeSummary() {
+      const total = totalTerms();
+      let known = 0;
+      getAllIndices().forEach(i => { if (firstDecision.get(i) === 'know') known++; });
+      const practice = total - known;
+      const score = Math.round((known / Math.max(total,1)) * 100);
+      return { known, practice, score, total };
+    }
+
+    // ===== 报告构建 + 用时 =====
+    function formatDuration(ms) {
+      let s = Math.max(0, Math.floor(ms / 1000));
+      const h = Math.floor(s / 3600); s -= h * 3600;
+      const m = Math.floor(s / 60); s -= m * 60;
+      const pad = (n) => String(n).padStart(2, '0');
+      return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${m}:${pad(s)}`;
+    }
+
+    function buildReport() {
+      const student = (document.getElementById('studentId').value || '').trim();
+      const finishedAt = new Date();
+      const started = new Date(startedAt);
+      const s = computeSummary();
+      const elapsedMs = Date.now() - startedAt;
+
+      const meta = [
+        `<div><strong>词库：</strong>第2周 • 英→中（共 ${s.total} 个词条）</div>`,
+        `<div><strong>学生：</strong> ${student || '（未填写）'}</div>`,
+        `<div><strong>开始时间：</strong> ${started.toLocaleString()}</div>`,
+        `<div><strong>结束时间：</strong> ${finishedAt.toLocaleString()}</div>`
+      ].join('');
+      document.getElementById('reportMeta').innerHTML = meta;
+
+      const st = document.getElementById('summaryTable');
+      st.innerHTML = `
+        <tr><th>总词数</th><td>${s.total}</td></tr>
+        <tr><th>已掌握</th><td>${s.known}</td></tr>
+        <tr><th>需要练习</th><td>${s.practice}</td></tr>
+        <tr><th>用时</th><td>${formatDuration(elapsedMs)}</td></tr>
+        <tr class="score-row"><th>得分</th><td>${s.score}%</td></tr>
+      `;
+    }
+
+    // ===== 直接用 Canvas 绘制 PNG（可靠，兼容移动端/桌面） =====
+    function drawReportToCanvas() {
+      const s = computeSummary();
+      const student = (document.getElementById('studentId').value || '').trim();
+      const finishedAt = new Date();
+      const started = new Date(startedAt);
+      const elapsedMs = Date.now() - startedAt;
+
+      const W = 900, P = 24, ROW_H = 36;
+
+      const tmp = document.createElement('canvas');
+      tmp.width = W; tmp.height = 1200;
+      const ctx = tmp.getContext('2d');
+      ctx.fillStyle = "#fff"; ctx.fillRect(0,0,tmp.width,tmp.height);
+
+      const titleFont = "bold 24px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial";
+      const h2Font = "600 18px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial";
+      const bodyFont = "14px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial";
+      const scoreFont = "bold 18px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial";
+
+      function text(t, x, y, font, color="#111827") { ctx.font = font; ctx.fillStyle = color; ctx.fillText(t, x, y); }
+      function line(x1,y1,x2,y2, color="#e5e7eb") { ctx.strokeStyle = color; ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke(); }
+      function measure(t, font) { ctx.font = font; return ctx.measureText(t).width; }
+
+      let y = P;
+
+      text("学习表现报告", P, y+24, titleFont); y += 24 + 8;
+
+      const metaLines = [
+        `词库：第2周 • 英→中（共 ${s.total} 个词条）`,
+        `学生：${student || '（未填写）'}`,
+        `开始时间：${started.toLocaleString()}`,
+        `结束时间：${finishedAt.toLocaleString()}`
+      ];
+      metaLines.forEach(l => { text(l, P, y+16, bodyFont, "#374151"); y += 18; });
+
+      y += 12;
+      text("摘要", P, y+18, h2Font); y += 18 + 8;
+
+      const rows = [
+        ["总词数", String(s.total)],
+        ["已掌握", String(s.known)],
+        ["需要练习", String(s.practice)],
+        ["用时", formatDuration(elapsedMs)],
+        ["得分", `${s.score}%`]
+      ];
+      const col1w = Math.max(...rows.map(r => measure(r[0], bodyFont))) + 24;
+      const tableX = P, tableW = W - P*2, col2x = tableX + col1w;
+
+      // top border
+      line(tableX, y, tableX + tableW, y);
+      rows.forEach((r, i) => {
+        const isScore = i === rows.length - 1;
+        const font = isScore ? scoreFont : bodyFont;
+        const color = isScore ? "#0f766e" : "#111827";
+
+        line(tableX, y, tableX, y + ROW_H);
+        line(col2x, y, col2x, y + ROW_H);
+        line(tableX + tableW, y, tableX + tableW, y + ROW_H);
+
+        text(r[0], tableX + 8, y + 23, font, color);
+        text(r[1], col2x + 8, y + 23, font, color);
+
+        line(tableX, y + ROW_H, tableX + tableW, y + ROW_H);
+        y += ROW_H;
+      });
+
+      const H = y + P;
+      const out = document.createElement('canvas');
+      out.width = W; out.height = H;
+      const octx = out.getContext('2d');
+      octx.fillStyle = "#fff"; octx.fillRect(0,0,W,H);
+      octx.drawImage(tmp, 0, 0);
+      return out;
+    }
+
+    async function saveReportAsImage() {
+      buildReport();
+      const canvas = drawReportToCanvas();
+      const dataUrl = canvas.toDataURL('image/png');
+
+      try {
+        if (navigator.canShare && typeof navigator.canShare === 'function') {
+          const res = await fetch(dataUrl);
+          const blob = await res.blob();
+          const file = new File([blob], '学习表现报告.png', { type: 'image/png' });
+          if (navigator.canShare({ files: [file] }) && navigator.share) {
+            await navigator.share({ files: [file], title: '学习表现报告' });
+            return;
+          }
+        }
+      } catch (_) { /* ignore and fallback */ }
+
+      const a = document.createElement('a');
+      a.href = dataUrl;
+      a.download = '学习表现报告.png';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => {
+        if (!document.hidden) {
+          const w = window.open(dataUrl, '_blank');
+          if (w) w.focus();
+        }
+      }, 300);
+    }
+
+    document.getElementById('saveImgBtn').addEventListener('click', (e) => {
+      e.stopPropagation();
+      saveReportAsImage();
+    });
+
+    // 初始化：载入首张
+    showCard();
+  </script>
+
+<script>
+// Safely move the 复习“需要练习” button above the arrow nav without touching functionality.
+document.addEventListener('DOMContentLoaded', function () {
+  try {
+    var nav = document.querySelector('.nav');
+    var review = document.getElementById('reviewControls');
+    if (nav && review && nav.parentNode) {
+      nav.parentNode.insertBefore(review, nav);
+    }
+  } catch (e) {
+    console.error('Reorder failed:', e);
+  }
+});
+</script>
+</body>
+</html>
